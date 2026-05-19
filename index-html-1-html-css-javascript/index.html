@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
@@ -441,10 +441,10 @@
       return availableHoles[Math.floor(Math.random() * availableHoles.length)] || null;
     }
 
-    function playOuch() {
+    function prepareAudio() {
       const AudioContext = window.AudioContext || window.webkitAudioContext;
       if (!AudioContext) {
-        return;
+        return null;
       }
 
       if (!audioContext) {
@@ -455,39 +455,47 @@
         audioContext.resume();
       }
 
+      return audioContext;
+    }
+
+    function playTone(context, start, duration, frequency, type, volume) {
+      const osc = context.createOscillator();
+      const gain = context.createGain();
+
+      osc.type = type;
+      osc.frequency.setValueAtTime(frequency, start);
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(volume, start + 0.012);
+      gain.gain.setValueAtTime(volume, start + duration * 0.55);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+
+      osc.connect(gain);
+      gain.connect(context.destination);
+
+      osc.start(start);
+      osc.stop(start + duration + 0.03);
+    }
+
+    function playCorrectSound() {
+      const context = prepareAudio();
+      if (!context) {
+        return;
+      }
+
+      const now = context.currentTime;
+      playTone(context, now, 0.13, 880, "sine", 0.7);
+      playTone(context, now + 0.13, 0.18, 1175, "sine", 0.76);
+    }
+
+    function playWrongSound() {
+      const context = prepareAudio();
+      if (!context) {
+        return;
+      }
+
       const now = audioContext.currentTime;
-      const master = audioContext.createGain();
-      master.gain.setValueAtTime(0.0001, now);
-      master.gain.exponentialRampToValueAtTime(0.18, now + 0.02);
-      master.gain.exponentialRampToValueAtTime(0.0001, now + 0.34);
-      master.connect(audioContext.destination);
-
-      const syllables = [
-        { start: 0, frequency: 720, vowel: 900 },
-        { start: 0.13, frequency: 520, vowel: 650 }
-      ];
-
-      syllables.forEach((part) => {
-        const osc = audioContext.createOscillator();
-        const tone = audioContext.createGain();
-        const filter = audioContext.createBiquadFilter();
-
-        osc.type = "sawtooth";
-        osc.frequency.setValueAtTime(part.frequency, now + part.start);
-        osc.frequency.exponentialRampToValueAtTime(part.frequency * 0.72, now + part.start + 0.12);
-        filter.type = "bandpass";
-        filter.frequency.setValueAtTime(part.vowel, now + part.start);
-        filter.Q.setValueAtTime(5, now + part.start);
-        tone.gain.setValueAtTime(0.0001, now + part.start);
-        tone.gain.exponentialRampToValueAtTime(0.26, now + part.start + 0.025);
-        tone.gain.exponentialRampToValueAtTime(0.0001, now + part.start + 0.16);
-
-        osc.connect(filter);
-        filter.connect(tone);
-        tone.connect(master);
-        osc.start(now + part.start);
-        osc.stop(now + part.start + 0.18);
-      });
+      playTone(context, now, 0.1, 220, "square", 0.64);
+      playTone(context, now + 0.12, 0.14, 180, "square", 0.68);
     }
 
     function hideMole() {
@@ -642,11 +650,12 @@
         if (hole === currentHole && canScore) {
           score += 1;
           canScore = false;
-          playOuch();
+          playCorrectSound();
           hole.classList.add("hit");
           setTimeout(hideMole, 140);
         } else {
           score -= 1;
+          playWrongSound();
         }
 
         scoreEl.textContent = score;
